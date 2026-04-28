@@ -1,0 +1,35 @@
+# Dépendances Node.js
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Logs Docker
+*.log
+
+# Fichiers OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Fichiers temporaires
+*.tar
+*.tmp
+
+# Variables locales (à ne PAS commiter en prod)
+.env.local
+
+# ⚠️ ATTENTION
+# Les secrets/ sont versionnés ICI car c'est un projet école avec des
+# valeurs d'exemple. EN VRAI on n'aurait JAMAIS de secrets dans Git !
+# On utiliserait : Docker Secrets externes, Vault, ou variables CI.

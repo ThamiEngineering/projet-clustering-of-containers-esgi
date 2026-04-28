@@ -1,0 +1,53 @@
+version: '3.8'
+
+# =============================================================
+# REVERSE PROXY STACK - Nginx Proxy Manager
+# Usage : docker stack deploy -c reverse-proxy-stack.yml proxy
+#
+# Cette stack DOIT être déployée AVANT la stack multiweb-stack,
+# car elle crée le réseau "proxy-network" partagé.
+#
+# Une fois déployée :
+#   - Interface admin : http://<master-ip>:81 (puis https://npm.thami.fr)
+#   - Login par défaut : admin@example.com / changeme
+#                        (à changer immédiatement)
+# =============================================================
+
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    networks:
+      - proxy-network
+    ports:
+      - "80:80"      # HTTP (Let's Encrypt + redirection HTTPS)
+      - "443:443"    # HTTPS
+      - "81:81"      # Admin UI
+    volumes:
+      - npm-data:/data
+      - npm-letsencrypt:/etc/letsencrypt
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+networks:
+  proxy-network:
+    driver: overlay
+    attachable: true
+    name: proxy-network
+
+volumes:
+  npm-data:
+  npm-letsencrypt:

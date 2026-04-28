@@ -1,0 +1,236 @@
+version: '3.8'
+
+# =============================================================
+# DOCKER STACK SWARM - MODE PRODUCTION
+# Usage :
+#   1) Construire et pousser les images :
+#        ./deploy.sh
+#   2) Ou manuellement :
+#        docker stack deploy -c docker-compose.prod.yml multiweb-stack
+#
+# Architecture déployée :
+#   - web-frontend  ×3  (workers)
+#   - user-service  ×2  (workers)
+#   - task-service  ×2  (workers)
+#   - postgres      ×1  (master, contrainte de placement)
+#   - postgres-data ─── volume nommé persistant
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # USER SERVICE (Node.js)
+  # -----------------------------------------------------------
+  user-service:
+    image: ${REGISTRY:-localhost}/user-service:${TAG:-latest}
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: multiweb_db
+    secrets:
+      - postgres_user
+      - postgres_password
+    networks:
+      - todo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.10'
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 30s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+        max_failure_ratio: 0.3
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: stop-first
+
+  # -----------------------------------------------------------
+  # TASK SERVICE (Flask Python)
+  # -----------------------------------------------------------
+  task-service:
+    image: ${REGISTRY:-localhost}/task-service:${TAG:-latest}
+    environment:
+      FLASK_ENV: production
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: multiweb_db
+    secrets:
+      - postgres_user
+      - postgres_password
+    networks:
+      - todo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.10'
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 30s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+        max_failure_ratio: 0.3
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: stop-first
+
+  # -----------------------------------------------------------
+  # WEB FRONTEND (PHP/Apache)
+  # -----------------------------------------------------------
+  web-frontend:
+    image: ${REGISTRY:-localhost}/web-frontend:${TAG:-latest}
+    environment:
+      APP_ENV: production
+      USER_SERVICE_URL: http://user-service:3000
+      TASK_SERVICE_URL: http://task-service:4000
+    networks:
+      - todo-network
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.10'
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 30s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+        max_failure_ratio: 0.3
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: stop-first
+
+  # -----------------------------------------------------------
+  # POSTGRESQL (1 replica sur le master, persistance via volume)
+  # -----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER_FILE: /run/secrets/postgres_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: multiweb_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets:
+      - postgres_user
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # init.sql monté depuis le master (le projet doit être cloné dans /opt/projet-final côté master)
+      - ${INIT_SQL_PATH:-/opt/projet-final/db}:/docker-entrypoint-initdb.d:ro
+    networks:
+      - todo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$(cat /run/secrets/postgres_user) -d multiweb_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 60s
+
+# =============================================================
+# SECRETS (Docker Swarm secrets)
+# =============================================================
+secrets:
+  postgres_user:
+    file: ./secrets/postgres_user
+  postgres_password:
+    file: ./secrets/postgres_password
+
+# =============================================================
+# RÉSEAUX
+#   - todo-network  : réseau interne overlay (services entre eux)
+#   - proxy-network : réseau partagé externe avec Nginx Proxy Manager
+# =============================================================
+networks:
+  todo-network:
+    driver: overlay
+    attachable: true
+  proxy-network:
+    external: true
+    name: proxy-network
+
+# =============================================================
+# VOLUMES (persistance)
+# =============================================================
+volumes:
+  postgres-data:
+    driver: local
