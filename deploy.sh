@@ -1,18 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================
 # Script de déploiement de la stack multiweb-stack sur Swarm
-#
-# Usage : ./deploy.sh
-#
-# Pré-requis :
-#   - Cluster Swarm initialisé (1 manager + 2 workers)
-#   - Le projet est cloné sur le manager dans le répertoire courant
-#   - Docker daemon accessible
 # =============================================================
 
 set -euo pipefail
 
-# Couleurs pour les messages
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -34,14 +26,15 @@ cd "$PROJECT_DIR"
 # 1. Vérifications préalables
 # -------------------------------------------------------------
 log "Vérification de l'état du cluster Swarm..."
-if ! docker info 2>/dev/null | grep -q "Swarm: active"; then
-    err "Le Swarm n'est pas actif. Lance 'docker swarm init' sur le manager d'abord."
+SWARM_INFO=$(docker info 2>/dev/null || true)
+if ! echo "$SWARM_INFO" | grep -q "Swarm: active"; then
+    err "Le Swarm n'est pas actif."
     exit 1
 fi
 ok "Swarm actif"
 
-if ! docker info 2>/dev/null | grep -q "Is Manager: true"; then
-    err "Ce nœud n'est pas un manager. Exécute ce script sur swarm-master."
+if ! echo "$SWARM_INFO" | grep -q "Is Manager: true"; then
+    err "Ce nœud n'est pas un manager."
     exit 1
 fi
 ok "Nœud manager confirmé"
@@ -56,51 +49,47 @@ docker build -t localhost/web-frontend:latest ./web-frontend
 ok "Images construites"
 
 # -------------------------------------------------------------
-# 3. Distribution des images aux workers
-#    (Swarm n'a pas de registre embarqué : on save/load via SSH)
-#    Pour ce projet on utilise une astuce : on tag les images avec
-#    "localhost/" et on les distribue manuellement aux workers.
-#
-#    Plus propre : monter un registre privé. Pour l'école, on simplifie.
+# 3. Distribution des images aux workers via leur IP privée
 # -------------------------------------------------------------
-log "Distribution des images aux workers..."
-WORKERS=$(docker node ls --filter role=worker --format '{{.Hostname}}')
+log "Récupération des IPs privées des workers via 'docker node inspect'..."
+WORKER_IPS=()
+for NODE_ID in $(docker node ls --filter role=worker --format '{{.ID}}'); do
+    IP=$(docker node inspect "$NODE_ID" --format '{{.Status.Addr}}')
+    WORKER_IPS+=("$IP")
+done
 
-if [ -z "$WORKERS" ]; then
-    warn "Aucun worker détecté, les images resteront seulement sur le manager"
+if [ ${#WORKER_IPS[@]} -eq 0 ]; then
+    warn "Aucun worker détecté"
 else
+    log "Workers détectés : ${WORKER_IPS[*]}"
     for IMAGE in user-service task-service web-frontend; do
         log "  -> Export de $IMAGE..."
         docker save "localhost/${IMAGE}:latest" -o "/tmp/${IMAGE}.tar"
 
-        for WORKER in $WORKERS; do
-            # On suppose que les hostnames résolvent ou que l'utilisateur a
-            # configuré /etc/hosts. Sinon, modifier ce script avec les IP privées.
-            log "     -> Transfert vers $WORKER..."
-            scp -o StrictHostKeyChecking=no "/tmp/${IMAGE}.tar" "root@${WORKER}:/tmp/${IMAGE}.tar" || \
-                warn "Impossible de transférer vers $WORKER (vérifie SSH/DNS)"
-            ssh -o StrictHostKeyChecking=no "root@${WORKER}" "docker load -i /tmp/${IMAGE}.tar && rm /tmp/${IMAGE}.tar" || \
-                warn "Impossible de charger l'image sur $WORKER"
+        for IP in "${WORKER_IPS[@]}"; do
+            log "     -> Transfert vers $IP..."
+            scp -o StrictHostKeyChecking=accept-new -q "/tmp/${IMAGE}.tar" "root@${IP}:/tmp/${IMAGE}.tar"
+            ssh -o StrictHostKeyChecking=accept-new "root@${IP}" "docker load -i /tmp/${IMAGE}.tar && rm /tmp/${IMAGE}.tar" > /dev/null
         done
 
         rm -f "/tmp/${IMAGE}.tar"
     done
-    ok "Images distribuées"
+    ok "Images distribuées sur tous les workers"
 fi
 
 # -------------------------------------------------------------
-# 4. Déploiement de la stack reverse-proxy (NPM) si pas déjà là
+# 4. Stack reverse proxy
 # -------------------------------------------------------------
 if ! docker stack ls --format '{{.Name}}' | grep -q "^${PROXY_STACK_NAME}$"; then
     log "Déploiement du reverse proxy (Nginx Proxy Manager)..."
     docker stack deploy -c stacks/reverse-proxy-stack.yml ${PROXY_STACK_NAME}
-    ok "Stack proxy déployée. Admin UI : http://$(hostname -I | awk '{print $1}'):81"
+    ok "Stack proxy déployée"
 else
     ok "Stack proxy déjà déployée"
 fi
 
 # -------------------------------------------------------------
-# 5. Déploiement de la stack applicative
+# 5. Stack applicative
 # -------------------------------------------------------------
 log "Déploiement de la stack ${STACK_NAME}..."
 export INIT_SQL_PATH="${PROJECT_DIR}/db"
@@ -108,7 +97,7 @@ docker stack deploy -c docker-compose.prod.yml ${STACK_NAME}
 ok "Stack ${STACK_NAME} déployée"
 
 # -------------------------------------------------------------
-# 6. Affichage de l'état
+# 6. État final
 # -------------------------------------------------------------
 echo ""
 log "Attente du démarrage des services (30s)..."
@@ -136,7 +125,7 @@ echo ""
 ok "Déploiement terminé !"
 echo ""
 echo "Prochaines étapes :"
-echo "  1. Configure Nginx Proxy Manager sur http://<master-ip>:81"
+echo "  1. Configure NPM sur http://$(curl -s ifconfig.me):81"
 echo "     (login par défaut : admin@example.com / changeme)"
 echo "  2. Crée un proxy host pour projet-esgi.thami.fr"
 echo "     -> forward vers : web-frontend:80"
