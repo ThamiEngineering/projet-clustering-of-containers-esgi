@@ -136,6 +136,8 @@ services:
     environment:
       DOZZLE_MODE: swarm
       DOZZLE_HOSTNAME: dozzle.thami.fr
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - monitoring
       - proxy-network
