@@ -1,10 +1,10 @@
-# 📦 Projet ESGI – Clusterisation de containers
+# Projet ESGI – Clusterisation de containers
 
 > **Projet final IW1 T2** – Orchestration d'une application microservices sur un cluster Docker Swarm
 
 ---
 
-## 📋 Table des matières
+## Table des matières
 
 - [Contexte](#-contexte)
 - [Architecture](#-architecture)
@@ -20,7 +20,7 @@
 
 ---
 
-## 🎯 Contexte
+## Contexte
 
 Ce projet implémente une **application ToDo** composée de plusieurs microservices, déployée sur un **cluster Docker Swarm** de 3 nœuds (1 manager + 2 workers).
 
@@ -34,14 +34,13 @@ Ce projet implémente une **application ToDo** composée de plusieurs microservi
 | Sécurité (secrets, HTTPS) | 2 | ✅ |
 | Exposition (Reverse Proxy + DNS) | 2 | ✅ |
 | Documentation & scripts | 2 | ✅ |
-| **🎁 Bonus 1** : Resources limits & reservations | +1 | ✅ |
-| **🎁 Bonus 2** : Placement constraints | +1 | ✅ |
-| **🎁 Bonus 3** : Rolling update + rollback automatique | +1 | ✅ |
-| **TOTAL VISÉ** | **18/15** | 🎯 |
+| ** Bonus 1** : Resources limits & reservations | +1 | ✅ |
+| ** Bonus 2** : Placement constraints | +1 | ✅ |
+| ** Bonus 3** : Rolling update + rollback automatique | +1 | ✅ |
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 ```
                           ┌──────────────────────┐
@@ -88,7 +87,7 @@ Ce projet implémente une **application ToDo** composée de plusieurs microservi
 
 ---
 
-## 🛠 Stack technique
+## Stack technique
 
 - **Orchestration** : Docker Swarm
 - **OS serveurs** : Debian 12
@@ -102,7 +101,7 @@ Ce projet implémente une **application ToDo** composée de plusieurs microservi
 
 ---
 
-## ✅ Pré-requis
+## Pré-requis
 
 ### Sur les 3 serveurs (1 manager + 2 workers)
 - Debian 12 ou Ubuntu 22.04+
@@ -116,7 +115,7 @@ Ce projet implémente une **application ToDo** composée de plusieurs microservi
 
 ---
 
-## 🚀 Installation pas à pas
+## Installation pas à pas
 
 ### 1. Provisionner les 3 serveurs
 
@@ -174,7 +173,7 @@ zzz        swarm-worker-2   Ready     Active
 
 ---
 
-## 📦 Déploiement de l'application
+## Déploiement de l'application
 
 ### 1. Cloner le projet sur le manager
 
@@ -208,7 +207,7 @@ docker stack ps multiweb-stack
 
 ---
 
-## 🔐 Configuration HTTPS (Nginx Proxy Manager)
+## Configuration HTTPS (Nginx Proxy Manager)
 
 ### 1. Premier accès à NPM
 
@@ -250,7 +249,7 @@ Crée un autre proxy host pour `npm.thami.fr` → `127.0.0.1:81` avec SSL Let's 
 
 ---
 
-## 🧪 Tests de haute disponibilité
+## Tests de haute disponibilité
 
 ### Test 1 : voir le load balancing
 
@@ -297,7 +296,7 @@ docker stack ps multiweb-stack | grep postgres
 
 ---
 
-## 🎁 Démonstration des bonus
+## Démonstration des bonus
 
 ### Bonus 1 : Resources limits & reservations
 
@@ -341,7 +340,7 @@ docker service rollback multiweb-stack_web-frontend
 
 ---
 
-## 🧹 Nettoyage
+## Nettoyage
 
 ```bash
 # Supprimer la stack applicative seulement (volumes conservés)
@@ -353,7 +352,7 @@ docker service rollback multiweb-stack_web-frontend
 
 ---
 
-## 🔧 Dépannage
+## Dépannage
 
 ### Le frontend ne démarre pas
 - Vérifie que `user-service` et `task-service` sont healthy : `docker service ls`
@@ -374,10 +373,10 @@ docker service rollback multiweb-stack_web-frontend
 
 ---
 
-## 👥 Auteurs
+## Auteurs
 
 Projet réalisé en groupe – ESGI IW1 T2 – Promotion 2025/2026
 
-## 📄 Licence
+## Licence
 
 Projet académique, à usage pédagogique uniquement.
