@@ -7,24 +7,26 @@ app.use(express.json());
 
 const port = process.env.PORT || 3000;
 
-// Lecture des secrets Docker
-const postgresUser = fs.readFileSync('/run/secrets/postgres_user', 'utf8').trim();
-const postgresPassword = fs.readFileSync('/run/secrets/postgres_password', 'utf8').trim();
+function readSecret(name) {
+  try {
+    return fs.readFileSync(`/run/secrets/${name}`, 'utf8').trim();
+  } catch {
+    return process.env[name.toUpperCase()] || '';
+  }
+}
 
 const pool = new Pool({
-  user: postgresUser,
+  user: readSecret('postgres_user'),
   host: process.env.POSTGRES_HOST || 'postgres',
   database: process.env.POSTGRES_DB || 'multiweb_db',
-  password: postgresPassword,
+  password: readSecret('postgres_password'),
   port: 5432,
 });
 
-// Healthcheck endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'user-service' });
 });
 
-// GET /users - liste tous les utilisateurs
 app.get('/users', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM users ORDER BY id');
@@ -35,7 +37,6 @@ app.get('/users', async (req, res) => {
   }
 });
 
-// POST /users - ajoute un nouvel utilisateur
 app.post('/users', async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim() === '') {
@@ -53,6 +54,10 @@ app.post('/users', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`User service écoute sur le port ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`User service écoute sur le port ${port}`);
+  });
+}
+
+module.exports = app;
