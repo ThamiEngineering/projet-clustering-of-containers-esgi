@@ -83,7 +83,7 @@ $pod = gethostname();
         body {
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             padding: 40px 20px;
@@ -96,10 +96,7 @@ $pod = gethostname();
         h1 {
             font-size: 2.5em;
             margin: 0 0 10px;
-            background: linear-gradient(90deg, var(--accent), var(--accent2));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--accent);
         }
         .subtitle { color: var(--muted); font-size: 1.05em; }
         .pod-badge {
@@ -157,7 +154,7 @@ $pod = gethostname();
         input[type="text"]:focus { border-color: var(--accent); }
         button {
             padding: 10px 20px;
-            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            background: var(--accent);
             color: #0f172a;
             border: none;
             border-radius: 8px;
@@ -194,7 +191,7 @@ $pod = gethostname();
     <div class="container">
 
         <header>
-            <h1>📦 Projet ESGI – Cluster Docker Swarm</h1>
+            <h1>Cluster Docker Swarm</h1>
             <p class="subtitle">ToDo App orchestrée sur 3 nœuds (1 master + 2 workers)</p>
             <div class="pod-badge">Servi par : <?= htmlspecialchars($pod) ?></div>
         </header>
@@ -208,7 +205,7 @@ $pod = gethostname();
         <div class="grid">
 
             <div class="card">
-                <h2>👥 Utilisateurs</h2>
+                <h2>Utilisateurs</h2>
                 <ul>
                     <?php if (empty($users)): ?>
                         <li class="empty">Aucun utilisateur</li>
@@ -225,7 +222,7 @@ $pod = gethostname();
             </div>
 
             <div class="card">
-                <h2>✅ Tâches</h2>
+                <h2>Tâches</h2>
                 <ul>
                     <?php if (empty($tasks)): ?>
                         <li class="empty">Aucune tâche</li>
