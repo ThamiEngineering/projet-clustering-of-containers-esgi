@@ -190,3 +190,45 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.service.name }}
+
+  deploy:
+    name: Deploy to Docker Swarm
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - name: Deploy services
+        uses: appleboy/ssh-action@v1
+        env:
+          SHA: ${{ github.sha }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: SHA,GHCR_USER,GHCR_PAT
+          script: |
+            IMAGE_PREFIX="ghcr.io/$(echo $GHCR_USER | tr '[:upper:]' '[:lower:]')"
+            SHORT_SHA="${SHA:0:7}"
+
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            docker service update \
+              --image ${IMAGE_PREFIX}/user-service:sha-${SHORT_SHA} \
+              --with-registry-auth \
+              multiweb-stack_user-service
+
+            docker service update \
+              --image ${IMAGE_PREFIX}/task-service:sha-${SHORT_SHA} \
+              --with-registry-auth \
+              multiweb-stack_task-service
+
+            docker service update \
+              --image ${IMAGE_PREFIX}/web-frontend:sha-${SHORT_SHA} \
+              --with-registry-auth \
+              multiweb-stack_web-frontend
+
+            docker logout ghcr.io
+            docker service ls
