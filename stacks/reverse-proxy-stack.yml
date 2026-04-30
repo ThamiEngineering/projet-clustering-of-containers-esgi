@@ -1,5 +1,3 @@
-version: '3.8'
-
 # =============================================================
 # REVERSE PROXY STACK - Nginx Proxy Manager
 # Usage : docker stack deploy -c reverse-proxy-stack.yml proxy

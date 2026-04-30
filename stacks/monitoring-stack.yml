@@ -1,0 +1,190 @@
+# =============================================================
+# MONITORING STACK - Prometheus + Grafana + cAdvisor + Node Exporter
+# Usage : ./deploy-monitoring.sh
+#         (ou : docker stack deploy -c stacks/monitoring-stack.yml monitoring)
+#
+# Pré-requis :
+#   - Swarm actif, ce nœud est manager
+#   - Stack "proxy" (NPM) déployée -> réseau "proxy-network" existant
+#   - Le projet est cloné dans /opt/projet-final côté manager
+#     (les volumes de provisioning Grafana sont montés depuis ce chemin)
+#
+# Architecture :
+#   - prometheus    ×1   (manager) -> scrape DNS Swarm tasks.cadvisor / tasks.node-exporter
+#   - grafana       ×1   (manager, exposé via NPM -> grafana.thami.fr)
+#   - cadvisor      global (1 par nœud, métriques par container)
+#   - node-exporter global (1 par nœud, métriques système hôte)
+#   - dozzle        ×1   (manager, UI logs temps réel, exposé via NPM -> dozzle.thami.fr)
+#   - dozzle-agent  global (1 par nœud, expose les logs locaux à dozzle)
+# =============================================================
+
+services:
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ${MONITORING_DIR:-/opt/projet-final/monitoring}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_INSTALL_PLUGINS: ''
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ${MONITORING_DIR:-/opt/projet-final/monitoring}/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ${MONITORING_DIR:-/opt/projet-final/monitoring}/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - monitoring
+      - proxy-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.10'
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    command:
+      - '--housekeeping_interval=30s'
+      - '--docker_only=true'
+      - '--store_container_labels=false'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.20'
+          memory: 200M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host/root'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 100M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+  # -----------------------------------------------------------
+  # DOZZLE (UI logs temps réel, exposée via NPM -> dozzle.thami.fr)
+  # -----------------------------------------------------------
+  dozzle:
+    image: amir20/dozzle:latest
+    environment:
+      DOZZLE_MODE: swarm
+      DOZZLE_HOSTNAME: dozzle.thami.fr
+    networks:
+      - monitoring
+      - proxy-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.20'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+
+  # -----------------------------------------------------------
+  # DOZZLE AGENT (1 par nœud, expose les logs locaux à l'UI)
+  # -----------------------------------------------------------
+  dozzle-agent:
+    image: amir20/dozzle:latest
+    command: agent
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 100M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+networks:
+  monitoring:
+    driver: overlay
+    attachable: true
+  proxy-network:
+    external: true
+    name: proxy-network
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
