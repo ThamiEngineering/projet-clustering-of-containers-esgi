@@ -5,10 +5,14 @@ from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 
-# Lecture des secrets Docker
+
 def read_secret(name):
-    with open(f'/run/secrets/{name}', 'r') as f:
-        return f.read().strip()
+    try:
+        with open(f'/run/secrets/{name}', 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return os.environ.get(name.upper(), '')
+
 
 POSTGRES_USER = read_secret('postgres_user')
 POSTGRES_PASSWORD = read_secret('postgres_password')

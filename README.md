@@ -1,5 +1,7 @@
 # Projet ESGI – Clusterisation de containers
 
+[![CI](https://github.com/ThamiEngineering/projet-clustering-of-containers-esgi/actions/workflows/ci.yml/badge.svg)](https://github.com/ThamiEngineering/projet-clustering-of-containers-esgi/actions/workflows/ci.yml)
+
 > **Projet final IW1 T2** – Orchestration d'une application microservices sur un cluster Docker Swarm
 
 ---
@@ -37,6 +39,7 @@ Ce projet implémente une **application ToDo** composée de plusieurs microservi
 | ** Bonus 1** : Resources limits & reservations | +1 | ✅ |
 | ** Bonus 2** : Placement constraints | +1 | ✅ |
 | ** Bonus 3** : Rolling update + rollback automatique | +1 | ✅ |
+| ** Bonus 6** : CI/CD (GitHub Actions – lint, test, scan, build, push) | +1 | ✅ |
 
 ---
 
