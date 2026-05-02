@@ -1,24 +1,5 @@
-# =============================================================
-# DOCKER STACK SWARM - MODE PRODUCTION
-# Usage :
-#   1) Construire et pousser les images :
-#        ./deploy.sh
-#   2) Ou manuellement :
-#        docker stack deploy -c docker-compose.prod.yml multiweb-stack
-#
-# Architecture déployée :
-#   - web-frontend  ×3  (workers)
-#   - user-service  ×2  (workers)
-#   - task-service  ×2  (workers)
-#   - postgres      ×1  (master, contrainte de placement)
-#   - postgres-data ─── volume nommé persistant
-# =============================================================
-
 services:
 
-  # -----------------------------------------------------------
-  # USER SERVICE (Node.js)
-  # -----------------------------------------------------------
   user-service:
     image: ${REGISTRY:-localhost}/user-service:${TAG:-latest}
     environment:
@@ -65,9 +46,6 @@ services:
         delay: 5s
         order: stop-first
 
-  # -----------------------------------------------------------
-  # TASK SERVICE (Flask Python)
-  # -----------------------------------------------------------
   task-service:
     image: ${REGISTRY:-localhost}/task-service:${TAG:-latest}
     environment:
@@ -114,9 +92,6 @@ services:
         delay: 5s
         order: stop-first
 
-  # -----------------------------------------------------------
-  # WEB FRONTEND (PHP/Apache)
-  # -----------------------------------------------------------
   web-frontend:
     image: ${REGISTRY:-localhost}/web-frontend:${TAG:-latest}
     environment:
@@ -161,9 +136,6 @@ services:
         delay: 5s
         order: stop-first
 
-  # -----------------------------------------------------------
-  # POSTGRESQL (1 replica sur le master, persistance via volume)
-  # -----------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     environment:
@@ -176,7 +148,6 @@ services:
       - postgres_password
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # init.sql monté depuis le master (le projet doit être cloné dans /opt/projet-final côté master)
       - ${INIT_SQL_PATH:-/opt/projet-final/db}:/docker-entrypoint-initdb.d:ro
     networks:
       - todo-network
@@ -204,20 +175,12 @@ services:
         max_attempts: 5
         window: 60s
 
-# =============================================================
-# SECRETS (Docker Swarm secrets)
-# =============================================================
 secrets:
   postgres_user:
     file: ./secrets/postgres_user
   postgres_password:
     file: ./secrets/postgres_password
 
-# =============================================================
-# RÉSEAUX
-#   - todo-network  : réseau interne overlay (services entre eux)
-#   - proxy-network : réseau partagé externe avec Nginx Proxy Manager
-# =============================================================
 networks:
   todo-network:
     driver: overlay
@@ -226,9 +189,6 @@ networks:
     external: true
     name: proxy-network
 
-# =============================================================
-# VOLUMES (persistance)
-# =============================================================
 volumes:
   postgres-data:
     driver: local
